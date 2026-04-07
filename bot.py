@@ -1,5 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
+import re
 import os
 
 URL = "https://msgold.com.my/index"
@@ -13,20 +14,25 @@ def get_gold_price_gram():
     res = requests.get(URL, headers=headers)
     soup = BeautifulSoup(res.text, "html.parser")
 
-    # Find all table rows
-    rows = soup.find_all("tr")
-    for row in rows:
-        cells = row.find_all("td")
-        # Look for the exact item
-        for i, cell in enumerate(cells):
-            if "999.9 Gold MYR / Gram" in cell.get_text():
-                # WE SELL is usually the next cell
-                if i + 1 < len(cells):
-                    price_str = cells[i + 1].get_text().strip().replace(",", "")
-                    try:
-                        return float(price_str)
-                    except:
-                        return None
+    # Find the exact string "999.9 Gold MYR / Gram"
+    element = soup.find(string=re.compile(r"999\.9\s+Gold\s+MYR\s*/\s*Gram"))
+    if not element:
+        return None
+
+    # Get the parent container (row/div) that contains the price
+    parent = element.find_parent()
+    if not parent:
+        return None
+
+    # Extract "WE SELL" followed by number
+    text = parent.get_text(" ", strip=True).upper()  # join all child text
+    match = re.search(r'WE SELL[:\s]*([\d,.]+)', text)
+    if match:
+        price_str = match.group(1).replace(",", "")
+        try:
+            return float(price_str)
+        except:
+            return None
     return None
 
 def send_telegram(msg):
